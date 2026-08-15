@@ -21,8 +21,8 @@ Run `make` in the top folder, provided TeX Live or MiKTeX is already installed.
 
 ## LICENSE
 
-The source code is covered by the MIT License.
-The images are covered by a Creative Commons Version 4 license.
+- The source code is covered by the MIT License.
+- The images are covered by a Creative Commons Version 4 license.
 
 
 ## Funding
