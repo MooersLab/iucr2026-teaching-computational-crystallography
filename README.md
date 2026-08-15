@@ -2,14 +2,13 @@
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 ![License](https://img.shields.io/badge/License-CC4-orange)
 
-# SoftwareFayre2026
+## Under construction; COME BACK Later!
 
-<<<<<<< HEAD
-
-## Clickable PyMOL shortcuts with AI assistance
-
-I presented a 45-minute tutorial about the [PyMOL Shortcuts Manager](https://github.com/MooersLab/pymolshortcuts-manager) at the Software Fayre, which runs in parallel with the triennial Congress of the International Union of Crystallography, at 11:15 AM on August 13, 2026, in Room 220 of the BMO Center in Calgary, Alberta.
-See the [meeting website](http://www.cryst.chem.uu.nl/lutz/thursday.html).
+## What is this?
+Slideshow for the XXVII Congress of the International Union of Crystallography (IUCr) 2026 talk in the microsymposium MS-116, Teaching Computational Crystallography, on August 17, 2026, from 3:00 to 3:30 PM in Room 224 of the BMO Convention Center in Calgary, Alberta. 
+This repo includes the Jupyter Notebooks used in the talk.
+The repo also includes the source files for assembly of the PDF with LaTeX.
+Run `make` in the top folder, provided TeX Live or MiKTeX is already installed.
 
 ## Compile the slides yourself
 
@@ -18,15 +17,6 @@ The `main.pdf` contains the slides.
 The `main.tex` is used with LaTeX and Beamer to generate the slides.
 The `Makefile` generates the PDF when `make` is run.
 It opens with the resulting PDF in Skim.app when you enter `make view`.
-=======
-## Under construction; COME BACK Later!
-
-## What is this?
-Slideshow for the XXVII Congress of the International Union of Crystallography (IUCr) 2026 talk in the microsymposium MS-116, Teaching Computational Crystallography, on August 17, 2026, from 3:00 to 3:30 PM in Room 224 of the BMO Convention Center in Calgary, Alberta. 
-This repo includes the Jupyter Notebooks used in the talk.
-The repo also includes the source files for assembly of the PDF with LaTeX.
-Run `make` in the top folder, provided TeX Live or MiKTeX is already installed.
->>>>>>> aaf565b2bb38af2e3d2bba5f5d5f6129c0e47b18
 
 ## LICENSE
 
