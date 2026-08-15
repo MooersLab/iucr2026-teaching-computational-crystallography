@@ -4,6 +4,8 @@
 
 # Teaching Crystallographic Computing with Computational Notebooks
 
+## Under construction; COME BACK Later!
+
 ## What is this?
 Slideshow for the XXVII Congress of the International Union of Crystallography (IUCr) 2026 talk in the microsymposium MS-116, Teaching Computational Crystallography, on August 17, 2026, from 3:00 to 3:30 PM in Room 224 of the BMO Convention Center in Calgary, Alberta. 
 This repo includes the Jupyter Notebooks used in the talk.
