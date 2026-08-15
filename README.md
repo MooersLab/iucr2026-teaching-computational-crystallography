@@ -13,6 +13,8 @@ Run `make` in the top folder, provided TeX Live or MiKTeX is already installed.
 
 ## Compile the slides yourself
 
+If you do not suffer from FOCL, Fear of the Command Line, you can compile the PDF yourself.
+
 - The `main.tex` file is the source file for the slides.
 - The `main.pdf` contains the slides. 
 - The `main.tex` is used with LaTeX and Beamer to generate the slides.
