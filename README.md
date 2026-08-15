@@ -13,11 +13,11 @@ Run `make` in the top folder, provided TeX Live or MiKTeX is already installed.
 
 ## Compile the slides yourself
 
-The `main.tex` file is the source file for the slides.
-The `main.pdf` contains the slides. 
-The `main.tex` is used with LaTeX and Beamer to generate the slides.
-The `Makefile` generates the PDF when `make` is run.
-It opens with the resulting PDF in Skim.app when you enter `make view`.
+- The `main.tex` file is the source file for the slides.
+- The `main.pdf` contains the slides. 
+- The `main.tex` is used with LaTeX and Beamer to generate the slides.
+- The `Makefile` generates the PDF when `make` is run.
+- It opens with the resulting PDF in Skim.app when you enter `make view`.
 
 ## LICENSE
 
