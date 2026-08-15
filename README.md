@@ -10,6 +10,7 @@ This repo includes the Jupyter Notebooks used in the talk.
 The repo also includes the source files for assembly of the PDF with LaTeX.
 Run `make` in the top folder, provided TeX Live or MiKTeX is already installed.
 
+
 ## Compile the slides yourself
 
 The `main.tex` file is the source file for the slides.
