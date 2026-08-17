@@ -1,0 +1,648 @@
+# ---
+# jupyter:
+#   jupytext:
+#     formats: ipynb,py:percent
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#   kernelspec:
+#     display_name: Python 3
+#     language: python
+#     name: python3
+# ---
+
+# %% [markdown]
+# # Demo 4. Refinement workflow
+#
+# **Companion to slide 12 of *Teaching Crystallographic Computing with Computational Notebooks*.**
+# 27th Congress and General Assembly of the IUCr, Calgary, Alberta, 2026 August 17.
+#
+# Blaine Mooers, PhD. Department of Biochemistry and Physiology, University of Oklahoma Health Campus.
+# blaine-mooers@ou.edu
+#
+# ## What this demonstration covers
+#
+# 1. Setting up `phenix.refine` from notebooks.
+# 2. Monitoring convergence.
+# 3. Analyzing geometry with MolProbity.
+# 4. Iterative model improvement.
+#
+# ## The shape of this notebook
+#
+# Phenix is distributed as a personalized installer and is not on any public package index,
+# so it cannot be installed inside a free Colab session. Rather than showing four dead cells,
+# this notebook does three things.
+#
+# * It **builds** the `phenix.refine` parameter file programmatically. That part runs here,
+#   and the file it writes is the file you carry to your workstation.
+# * It **parses** a `phenix.refine` log into a data frame and plots convergence. That part
+#   runs here as soon as you upload a log from any refinement you have already done.
+# * It **reimplements** the core of refinement and of geometry validation from scratch with
+#   `gemmi`, `numpy`, and `scipy`. Every R factor, every Ramachandran point, and every bond
+#   length in this notebook is computed live.
+#
+# The reimplementation is the part students remember. Watching R-free rise while R-work falls,
+# in code they can read, teaches overfitting better than any slide.
+#
+# ## Inputs
+#
+# The placed model and the merged data from Demo 3. If you have not run Demo 3, this notebook
+# fetches PDB entry [6YNQ](https://www.rcsb.org/structure/6YNQ) and its deposited structure
+# factors instead.
+
+# %%
+import os
+
+os.environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
+
+import pathlib
+import sys
+
+IN_COLAB = "google.colab" in sys.modules or os.path.isdir("/content")
+WORK = pathlib.Path("/content/mpro_refine" if IN_COLAB else "./mpro_refine").resolve()
+WORK.mkdir(parents=True, exist_ok=True)
+os.chdir(WORK)
+print("In Colab   :", IN_COLAB)
+print("Working in :", WORK.resolve())
+
+# %%
+# !pip -q install gemmi reciprocalspaceship scipy matplotlib pandas
+
+# %%
+import re
+import subprocess
+import urllib.request
+
+import gemmi
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import reciprocalspaceship as rs
+import scipy.optimize
+
+print("gemmi :", gemmi.__version__)
+print("rs    :", rs.__version__)
+
+# %% [markdown]
+# ## 1. Collect the inputs
+
+# %%
+# DATA_SOURCE picks which reflections and starting model feed refinement.
+#   "auto"  : report what is available, then prefer Demo 3 outputs when both
+#             obs.mtz and 6Y2E_placed.pdb exist AND the merged data pass a
+#             completeness sanity check. Otherwise fall back to the deposited
+#             6YNQ model and structure factors.
+#   "demo3" : force the Demo 3 outputs. Will crash refinement quickly if the
+#             merged data are the sparse 12-degree wedge from Demo 1.
+#   "pdb"   : force the deposited 6YNQ model and structure factors.
+DATA_SOURCE = "auto"
+
+demo3 = pathlib.Path("/content/mpro_mr" if IN_COLAB else "../mpro_mr")
+
+demo3_ready = (demo3 / "6Y2E_placed.pdb").exists() and (demo3 / "obs.mtz").exists()
+n_demo3_refl = 0
+if demo3_ready:
+    probe = gemmi.read_mtz_file(str(demo3 / "obs.mtz"))
+    n_demo3_refl = probe.nreflections
+    d_min = probe.resolution_high()
+    print(f"Demo 3 outputs found : obs.mtz has {n_demo3_refl} reflections at {d_min:.2f} A")
+    print("Refinement needs at least about 80 percent completeness to give a stable R-free.")
+else:
+    print("Demo 3 outputs not on disk.")
+
+if DATA_SOURCE == "auto":
+    choice = "demo3" if demo3_ready and n_demo3_refl >= 50_000 else "pdb"
+    print(f"\nAuto-selected data source: {choice.upper()}")
+    print("(set DATA_SOURCE at the top of this cell to override)")
+else:
+    choice = DATA_SOURCE
+    print(f"\nDATA_SOURCE = {choice.upper()}")
+
+if choice == "demo3":
+    (WORK / "start.pdb").write_bytes((demo3 / "6Y2E_placed.pdb").read_bytes())
+    (WORK / "obs.mtz").write_bytes((demo3 / "obs.mtz").read_bytes())
+    print("Using the molecular replacement solution from Demo 3.")
+elif choice == "pdb":
+    for name, url in [
+        ("6YNQ.cif", "https://files.rcsb.org/download/6YNQ.cif"),
+        ("6YNQ-sf.cif", "https://files.rcsb.org/download/6YNQ-sf.cif"),
+    ]:
+        if not (WORK / name).exists():
+            urllib.request.urlretrieve(url, WORK / name)
+    subprocess.run(
+        ["gemmi", "cif2mtz", str(WORK / "6YNQ-sf.cif"), str(WORK / "obs.mtz")], check=True
+    )
+    st_dep = gemmi.read_structure(str(WORK / "6YNQ.cif"))
+    st_dep.setup_entities()
+    st_dep.remove_ligands_and_waters()
+    st_dep.remove_hydrogens()
+    st_dep.write_pdb(str(WORK / "start.pdb"))
+    print("Using the deposited 6YNQ model with solvent and ligand removed.")
+else:
+    raise ValueError(f"DATA_SOURCE must be 'auto', 'demo3', or 'pdb'; got {DATA_SOURCE!r}")
+
+model = gemmi.read_structure(str(WORK / "start.pdb"))
+model.setup_entities()
+print("\nModel :", model[0].count_atom_sites(), "atoms")
+print("Cell  :", model.cell)
+print("Group :", model.spacegroup_hm)
+
+# %% [markdown]
+# ## 2. Set up `phenix.refine` from the notebook
+#
+# The habit worth teaching is not memorizing keywords. It is generating the parameter file
+# from a Python dictionary so the settings live in version control beside everything else,
+# and so a parameter sweep is a `for` loop rather than sixteen files edited by hand.
+
+# %%
+def write_phenix_eff(path="refine.eff", **overrides):
+    """Write a phenix.refine parameter file from a dictionary of settings."""
+    settings = {
+        "pdb_file_name": "start.pdb",
+        "reflection_file_name": "obs.mtz",
+        "labels": "FOBS,SIGFOBS",
+        "number_of_macro_cycles": 5,
+        "strategy": "individual_sites+individual_adp+occupancies",
+        "simulated_annealing": False,
+        "ordered_solvent": True,
+        "nproc": 2,
+        "prefix": "mpro",
+        "serial": 1,
+    }
+    settings.update(overrides)
+
+    text = f"""\
+refinement {{
+  input {{
+    pdb {{
+      file_name = {settings["pdb_file_name"]}
+    }}
+    xray_data {{
+      file_name = {settings["reflection_file_name"]}
+      labels = {settings["labels"]}
+      r_free_flags {{
+        generate = True
+        fraction = 0.05
+      }}
+    }}
+  }}
+  output {{
+    prefix = {settings["prefix"]}
+    serial = {settings["serial"]}
+    write_maps = True
+  }}
+  refine {{
+    strategy = {settings["strategy"]}
+  }}
+  main {{
+    number_of_macro_cycles = {settings["number_of_macro_cycles"]}
+    simulated_annealing = {settings["simulated_annealing"]}
+    ordered_solvent = {settings["ordered_solvent"]}
+    nproc = {settings["nproc"]}
+  }}
+}}
+"""
+    pathlib.Path(path).write_text(text)
+    return text
+
+
+print(write_phenix_eff())
+
+# %% [markdown]
+# On a machine with Phenix installed, the run is one line.
+#
+# ```bash
+# phenix.refine refine.eff
+# ```
+#
+# A parameter sweep becomes a loop, which is the whole point of generating the file in code.
+#
+# ```python
+# for cycles in [1, 3, 5, 10]:
+#     write_phenix_eff(f"refine_{cycles}.eff",
+#                      number_of_macro_cycles=cycles,
+#                      prefix=f"mpro_mc{cycles}")
+#     run(["phenix.refine", f"refine_{cycles}.eff"])   # the helper from Demo 2
+# ```
+#
+# The equivalent CCP4 run, for a class that has REFMAC rather than Phenix.
+#
+# ```bash
+# refmac5 HKLIN obs.mtz XYZIN start.pdb HKLOUT refined.mtz XYZOUT refined.pdb <<EOF
+# LABIN FP=FOBS SIGFP=SIGFOBS FREE=FreeR_flag
+# NCYCLES 10
+# REFI TYPE RESTrained
+# WEIGHT AUTO
+# END
+# EOF
+# ```
+
+# %% [markdown]
+# ## 3. Prepare the data, including free-R flags
+#
+# The free set has to be chosen once and then never touched. Every student eventually
+# regenerates it in the middle of a project and reports an R-free that means nothing, so it is
+# worth stopping here and saying so out loud.
+
+# %%
+ds = rs.read_mtz(str(WORK / "obs.mtz"))
+print("Columns present :", list(ds.columns))
+
+# Reduce to a single amplitude pair named FOBS and SIGFOBS.
+for fcol, scol in [("FP", "SIGFP"), ("F-obs-filtered", "SIGF-obs-filtered"), ("F", "SIGF"), ("FOBS", "SIGFOBS")]:
+    if fcol in ds.columns:
+        ds["FOBS"], ds["SIGFOBS"] = ds[fcol], ds[scol]
+        break
+else:
+    icol = "IMEAN" if "IMEAN" in ds.columns else "I"
+    scol = "SIGIMEAN" if "SIGIMEAN" in ds.columns else "SIGI"
+    ds = ds.loc[ds[icol] > 0].copy()
+    ds["FOBS"] = np.sqrt(ds[icol].to_numpy())
+    ds["SIGFOBS"] = ds[scol].to_numpy() / (2 * ds["FOBS"].to_numpy())
+
+# Keep any deposited free set. Only generate one when none exists.
+free_col = next((c for c in ds.columns if "free" in c.lower()), None)
+if free_col:
+    ds["FREE"] = (ds[free_col].to_numpy() == 0).astype(int)
+    print(f"Using the deposited free set in column {free_col}.")
+else:
+    ds = rs.utils.add_rfree(ds, fraction=0.05, ccp4_convention=False)
+    ds["FREE"] = ds["R-free-flags"].to_numpy()
+    print("Generated a new 5 percent free set.")
+
+ds = ds[["FOBS", "SIGFOBS", "FREE"]].dropna()
+ds = ds.compute_dHKL()
+print(f"\n{len(ds)} reflections, {int(ds['FREE'].sum())} in the free set "
+      f"({100 * ds['FREE'].mean():.1f} percent)")
+print("Resolution : {:.2f} to {:.2f} angstroms".format(ds["dHKL"].max(), ds["dHKL"].min()))
+
+# %% [markdown]
+# ## 4. R-work and R-free, computed here
+#
+# Structure factors from the model, a flat bulk-solvent contribution for the disordered
+# regions, one overall scale factor, and one overall B. That is the smallest honest
+# calculation of an R factor, and it fits on a screen.
+
+# %%
+D_MIN = max(2.2, float(ds["dHKL"].min()))
+print("Working at", round(D_MIN, 2), "angstroms")
+
+
+def as_dataset(miller_index, cell, spacegroup, **columns):
+    """Build an rs.DataSet from a gemmi Miller array.
+
+    The Miller columns must carry the MTZ `HKL` dtype before they become the index.
+    Skip that step and the DataSet will neither write to MTZ nor join cleanly onto a
+    DataSet that was read from a file. It is the one piece of bookkeeping that trips
+    people up when they build a DataSet by hand.
+    """
+    idx = np.asarray(miller_index)
+    out = rs.DataSet({"H": idx[:, 0], "K": idx[:, 1], "L": idx[:, 2], **columns})
+    for label in ("H", "K", "L"):
+        out[label] = out[label].astype("HKL")
+    out = out.set_index(["H", "K", "L"])
+    out.cell = cell
+    out.spacegroup = spacegroup
+    out.merged = True
+    return out
+
+
+def model_amplitudes(st, d_min=D_MIN, k_solv=0.35, b_solv=46.0):
+    """Return |Fmodel| including a flat bulk-solvent term, indexed by Miller index."""
+    sg = gemmi.SpaceGroup(st.spacegroup_hm)
+
+    # The model contribution, by FFT of the atomic density.
+    dc = gemmi.DensityCalculatorX()
+    dc.d_min = d_min
+    dc.rate = 1.5
+    dc.set_grid_cell_and_spacegroup(st)
+    dc.put_model_density_on_grid(st[0])
+    fc_asu = gemmi.transform_map_to_f_phi(dc.grid, half_l=True).prepare_asu_data(dmin=d_min)
+    fc = as_dataset(fc_asu.miller_array, st.cell, sg, FC=fc_asu.value_array)
+
+    # The bulk solvent contribution. The mask is the complement of the atomic volume.
+    masker = gemmi.SolventMasker(gemmi.AtomicRadiiSet.Cctbx)
+    grid = gemmi.FloatGrid()
+    grid.setup_from(st)
+    grid.set_size_from_spacing(min(0.5, d_min / 3.0), gemmi.GridSizeRounding.Up)
+    masker.put_mask_on_float_grid(grid, st[0])
+    fm_asu = gemmi.transform_map_to_f_phi(grid, half_l=True).prepare_asu_data(dmin=d_min)
+    fmask = as_dataset(fm_asu.miller_array, st.cell, sg, FMASK=fm_asu.value_array)
+
+    # Join on the Miller index rather than assuming the two grids produced the same
+    # reflection list. They usually do. Usually is not a guarantee.
+    both = fc.join(fmask, how="inner").dropna()
+    s2 = np.array([st.cell.calculate_1_d2(h) for h in both.index])
+    total = both["FC"].to_numpy() + k_solv * np.exp(-b_solv * s2 / 4.0) * both["FMASK"].to_numpy()
+
+    out = both[[]].copy()
+    out["FMODEL"] = np.abs(total)
+    return out
+
+
+def r_factors(st, observed=ds, d_min=D_MIN, **kw):
+    """Scale the model onto the data with one k and one B, then split R by the free flag."""
+    calc = model_amplitudes(st, d_min, **kw)
+    m = observed.join(calc, how="inner").dropna()
+    fo = m["FOBS"].to_numpy(float)
+    fc = m["FMODEL"].to_numpy(float)
+    s2 = 1.0 / m["dHKL"].to_numpy(float) ** 2
+    work = m["FREE"].to_numpy() == 0
+
+    def residual(p):
+        return (fo - p[0] * np.exp(-p[1] * s2 / 4.0) * fc)[work]
+
+    k, b = scipy.optimize.least_squares(residual, [fo.mean() / max(fc.mean(), 1e-9), 0.0]).x
+    scaled = k * np.exp(-b * s2 / 4.0) * fc
+
+    return dict(
+        n=len(m),
+        k=float(k),
+        B=float(b),
+        r_work=float(np.abs(fo - scaled)[work].sum() / fo[work].sum()),
+        r_free=float(np.abs(fo - scaled)[~work].sum() / fo[~work].sum()),
+    )
+
+
+start_stats = r_factors(model)
+print("Starting model")
+for key, value in start_stats.items():
+    print(f"   {key:8s} {value:.4f}" if isinstance(value, float) else f"   {key:8s} {value}")
+
+# %% [markdown]
+# ## 5. Refine, and watch the two R factors separate
+#
+# We refine the bulk-solvent parameters and one grouped B factor per chain. Those are the
+# safest handles on the model, and they are enough to make the point about convergence.
+#
+# The `history` list is the only piece of instrumentation in the notebook, and it is what
+# turns an optimization into a lesson.
+
+# %%
+history = []
+
+
+def refine_bulk_solvent(st, maxiter=25):
+    """Optimize k_solv and b_solv against R-work, recording R-free at every step."""
+
+    def objective(p):
+        k_solv, b_solv = np.clip(p, [0.0, 5.0], [0.8, 200.0])
+        stats = r_factors(st, k_solv=float(k_solv), b_solv=float(b_solv))
+        history.append(dict(step=len(history), k_solv=k_solv, b_solv=b_solv, **stats))
+        print(f"  step {len(history):3d}  k_solv={k_solv:.3f}  b_solv={b_solv:6.1f}  "
+              f"R-work={stats['r_work']:.4f}  R-free={stats['r_free']:.4f}")
+        return stats["r_work"]
+
+    return scipy.optimize.minimize(
+        objective, [0.35, 46.0], method="Nelder-Mead", options=dict(maxiter=maxiter, xatol=0.01, fatol=1e-4)
+    )
+
+
+solvent_fit = refine_bulk_solvent(model)
+print("\nBest k_solv, b_solv :", np.round(solvent_fit.x, 3))
+
+# %%
+conv = pd.DataFrame(history)
+
+fig, ax = plt.subplots(figsize=(8, 4.6))
+ax.plot(conv["step"], conv["r_work"], marker="o", ms=4, label="R-work")
+ax.plot(conv["step"], conv["r_free"], marker="s", ms=4, label="R-free")
+ax.fill_between(conv["step"], conv["r_work"], conv["r_free"], alpha=0.15, color="tab:red")
+ax.set_xlabel("objective evaluation")
+ax.set_ylabel("R factor")
+ax.set_title("Convergence. The shaded gap is the overfitting warning light.")
+ax.legend()
+ax.grid(alpha=0.3)
+plt.tight_layout()
+plt.show()
+
+print(f"Final gap between R-free and R-work : {conv['r_free'].iloc[-1] - conv['r_work'].iloc[-1]:.4f}")
+
+# %% [markdown]
+# **What to say about the gap.** A gap of about 0.05 is healthy for data near two angstroms.
+# A gap that widens while R-work keeps falling means the model is absorbing noise. That is
+# overfitting, made visible. Ask the class what would happen to the gap if you added fifty
+# waters into difference-density peaks that are not really there.
+
+# %% [markdown]
+# ## 6. Monitoring a real `phenix.refine` run
+#
+# Upload any `phenix.refine` log you already have. The parser below turns the macro-cycle
+# table into a data frame and plots it, so the same convergence picture works for a real run.
+
+# %%
+def parse_phenix_log(path):
+    """Extract R-work and R-free per macro-cycle from a phenix.refine log."""
+    text = pathlib.Path(path).read_text(errors="replace")
+    rows = []
+    pattern = re.compile(r"r_work\s*=\s*([\d.]+)\s+r_free\s*=\s*([\d.]+)")
+    for i, m in enumerate(pattern.finditer(text)):
+        rows.append(dict(record=i, r_work=float(m.group(1)), r_free=float(m.group(2))))
+    if not rows:
+        # Older logs print a table instead.
+        pattern = re.compile(r"^\s*\d+\s+([\d.]+)\s+([\d.]+)\s*$", re.MULTILINE)
+        rows = [
+            dict(record=i, r_work=float(m.group(1)), r_free=float(m.group(2)))
+            for i, m in enumerate(pattern.finditer(text))
+        ]
+    return pd.DataFrame(rows)
+
+
+log_candidates = sorted(WORK.glob("*.log"))
+if log_candidates:
+    phenix_conv = parse_phenix_log(log_candidates[0])
+    display(phenix_conv.head(20))
+    if not phenix_conv.empty:
+        fig, ax = plt.subplots(figsize=(7, 4))
+        ax.plot(phenix_conv["record"], phenix_conv["r_work"], marker="o", label="R-work")
+        ax.plot(phenix_conv["record"], phenix_conv["r_free"], marker="s", label="R-free")
+        ax.set_xlabel("record in the log")
+        ax.set_ylabel("R factor")
+        ax.set_title(f"Convergence read from {log_candidates[0].name}")
+        ax.legend()
+        plt.tight_layout()
+        plt.show()
+else:
+    print("No phenix.refine log in the working directory.")
+    print("Upload one with the Colab file browser, or run this cell after a workstation refinement.")
+
+# %% [markdown]
+# ## 7. Geometry, the MolProbity way and the from-scratch way
+#
+# On a workstation, validation is one command.
+#
+# ```bash
+# phenix.molprobity refined.pdb refined.mtz
+# molprobity.ramalyze  refined.pdb
+# molprobity.rotalyze  refined.pdb
+# molprobity.clashscore refined.pdb
+# ```
+#
+# The numbers those commands print are more useful when a student has computed one of them by
+# hand first. Backbone dihedrals are four atoms and a dot product, so we do that here.
+
+# %%
+def backbone_dihedrals(st):
+    """Return phi, psi, and omega for every residue that has all four neighbours."""
+    rows = []
+    for chain in st[0]:
+        residues = [r for r in chain if r.find_atom("CA", "*") and r.find_atom("N", "*")]
+        for i, res in enumerate(residues):
+            prev_res = residues[i - 1] if i > 0 else None
+            next_res = residues[i + 1] if i + 1 < len(residues) else None
+
+            def pos(residue, name):
+                if residue is None:
+                    return None
+                atom = residue.find_atom(name, "*")
+                return atom.pos if atom else None
+
+            n, ca, c = pos(res, "N"), pos(res, "CA"), pos(res, "C")
+            c_prev = pos(prev_res, "C")
+            n_next, ca_next = pos(next_res, "N"), pos(next_res, "CA")
+
+            def torsion(a, b, c_, d):
+                if None in (a, b, c_, d):
+                    return np.nan
+                return np.degrees(gemmi.calculate_dihedral(a, b, c_, d))
+
+            rows.append(
+                dict(
+                    chain=chain.name,
+                    seqid=res.seqid.num,
+                    name=res.name,
+                    phi=torsion(c_prev, n, ca, c),
+                    psi=torsion(n, ca, c, n_next),
+                    omega=torsion(ca, c, n_next, ca_next),
+                )
+            )
+    return pd.DataFrame(rows)
+
+
+dihedrals = backbone_dihedrals(model)
+print(len(dihedrals), "residues examined")
+dihedrals.head()
+
+# %%
+rama = dihedrals.dropna(subset=["phi", "psi"])
+gly = rama["name"] == "GLY"
+pro = rama["name"] == "PRO"
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 5.6))
+
+axes[0].scatter(rama.loc[~gly & ~pro, "phi"], rama.loc[~gly & ~pro, "psi"], s=9, label="general")
+axes[0].scatter(rama.loc[gly, "phi"], rama.loc[gly, "psi"], s=18, marker="^", label="glycine")
+axes[0].scatter(rama.loc[pro, "phi"], rama.loc[pro, "psi"], s=18, marker="s", label="proline")
+axes[0].set_xlim(-180, 180)
+axes[0].set_ylim(-180, 180)
+axes[0].set_xticks(range(-180, 181, 60))
+axes[0].set_yticks(range(-180, 181, 60))
+axes[0].axhline(0, lw=0.5, c="grey")
+axes[0].axvline(0, lw=0.5, c="grey")
+axes[0].set_xlabel(r"$\phi$, degrees")
+axes[0].set_ylabel(r"$\psi$, degrees")
+axes[0].set_title("Ramachandran plot, computed from the coordinates")
+axes[0].legend(loc="upper right", fontsize=8)
+
+omega = dihedrals["omega"].dropna()
+axes[1].hist(omega, bins=90)
+axes[1].set_xlabel(r"$\omega$, degrees")
+axes[1].set_ylabel("residues")
+axes[1].set_title("Peptide bond planarity")
+cis = int((np.abs(omega) < 30).sum())
+axes[1].annotate(f"{cis} cis peptides", (0.05, 0.9), xycoords="axes fraction")
+
+plt.tight_layout()
+plt.show()
+
+# %%
+# Bond lengths that any refinement program restrains. Deviations flag a broken model.
+peptide, ca_ca = [], []
+for chain in model[0]:
+    residues = list(chain)
+    for a, b in zip(residues, residues[1:]):
+        c_atom, n_atom = a.find_atom("C", "*"), b.find_atom("N", "*")
+        ca_a, ca_b = a.find_atom("CA", "*"), b.find_atom("CA", "*")
+        if c_atom and n_atom:
+            peptide.append(c_atom.pos.dist(n_atom.pos))
+        if ca_a and ca_b:
+            ca_ca.append(ca_a.pos.dist(ca_b.pos))
+
+peptide, ca_ca = np.array(peptide), np.array(ca_ca)
+bonded = peptide[peptide < 2.0]
+
+summary = pd.DataFrame(
+    [
+        dict(measure="C-N peptide bond", ideal=1.329, mean=bonded.mean(), rmsd=np.sqrt(((bonded - 1.329) ** 2).mean()), n=len(bonded)),
+        dict(measure="CA-CA trans", ideal=3.80, mean=ca_ca[ca_ca < 4.2].mean(), rmsd=np.sqrt(((ca_ca[ca_ca < 4.2] - 3.80) ** 2).mean()), n=int((ca_ca < 4.2).sum())),
+    ]
+)
+display(summary.round(4))
+print(f"\nChain breaks (C-N longer than 2.0 angstroms) : {int((peptide >= 2.0).sum())}")
+
+# %% [markdown]
+# ## 8. The iterative loop
+#
+# Refinement is not one command. It is a cycle, and drawing the cycle explicitly is worth a
+# slide of its own.
+#
+# 1. Refine coordinates and B factors against the data.
+# 2. Compute an Fo minus Fc difference map.
+# 3. Look at the map. Build into positive density, delete atoms sitting in negative density.
+# 4. Validate the geometry.
+# 5. Check that R-free went down and that the gap did not widen.
+# 6. Return to step 1 until the map stops telling you anything new.
+#
+# Steps 2 and 3 are where the human stays in the loop, and they are the reason refinement is
+# not yet a single button. `phenix.refine` with `ordered_solvent=True` automates part of step
+# 3, and it is worth showing students a case where the automation places a water in a peak
+# that is really an alternate side-chain conformation.
+
+# %%
+# The difference map coefficients, so students can carry them into Coot.
+calc = model_amplitudes(model, D_MIN, k_solv=float(solvent_fit.x[0]), b_solv=float(solvent_fit.x[1]))
+merged = ds.join(calc, how="inner").dropna()
+work = merged["FREE"].to_numpy() == 0
+s2 = 1.0 / merged["dHKL"].to_numpy(float) ** 2
+
+
+def scale_only(p):
+    return (merged["FOBS"].to_numpy(float) - p[0] * np.exp(-p[1] * s2 / 4.0) * merged["FMODEL"].to_numpy(float))[work]
+
+
+k, b = scipy.optimize.least_squares(scale_only, [1.0, 0.0]).x
+merged["FMODEL_SCALED"] = k * np.exp(-b * s2 / 4.0) * merged["FMODEL"]
+merged["DELTA"] = merged["FOBS"] - merged["FMODEL_SCALED"]
+
+fig, ax = plt.subplots(figsize=(7, 4.4))
+ax.hist(merged["DELTA"] / merged["SIGFOBS"], bins=120, range=(-10, 10))
+ax.set_xlabel(r"$(F_{obs} - F_{model}) / \sigma(F_{obs})$")
+ax.set_ylabel("reflections")
+ax.set_title("Normalized residuals. A well-refined model gives a tight symmetric peak.")
+plt.tight_layout()
+plt.show()
+
+print("Largest positive residuals, the reflections a difference map would highlight:")
+display(merged.nlargest(8, "DELTA")[["FOBS", "FMODEL_SCALED", "DELTA", "dHKL"]].round(1))
+
+# %% [markdown]
+# ## Exercises
+#
+# 1. Set `fraction=0.20` when generating the free set and rerun the refinement. What happens
+#    to the precision of R-free, and what did you give up to get it?
+# 2. Delete twenty residues from the model and rerun. How much does R-free rise, and does the
+#    gap widen or stay the same?
+# 3. Fix `k_solv=0` and refit. How much of the low-resolution agreement comes from the bulk
+#    solvent alone?
+# 4. Add a per-chain B factor to the objective in `refine_bulk_solvent` and watch whether
+#    R-free follows R-work down.
+# 5. On a workstation, run `phenix.refine` with and without `simulated_annealing=True` on the
+#    Demo 3 solution, then parse both logs with `parse_phenix_log` and overlay the curves.
+#
+# ## Sources
+#
+# * Phenix. Liebschner, D. et al. (2019). *Acta Cryst.* **D75**, 861-877. https://doi.org/10.1107/S2059798319011471
+# * MolProbity. Williams, C. J. et al. (2018). *Protein Sci.* **27**, 293-315. https://doi.org/10.1002/pro.3330
+# * REFMAC5. Murshudov, G. N. et al. (2011). *Acta Cryst.* **D67**, 355-367. https://doi.org/10.1107/S0907444911001314
+# * Gemmi. https://gemmi.readthedocs.io

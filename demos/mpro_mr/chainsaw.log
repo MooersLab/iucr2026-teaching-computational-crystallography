@@ -1,0 +1,33 @@
+File: "6Y2E.pdb"
+Cannot be opened for reading
+>>>>>> CCP4 library signal ccp4_general:Cannot find input file (Error)
+	 raised in ccp4setenv <<<<<<
+ 
+ ###############################################################
+ ###############################################################
+ ###############################################################
+ ### CCP4 9.0.014: CHAINSAW         version 9.0.014 :         ##
+ ###############################################################
+ User: blaine  Run date: 16/ 8/2026 Run time: 19:07:55 
+
+
+ Please reference: Collaborative Computational Project, Number 4. 2011.
+ "Overview of the CCP4 suite and current developments". Acta Cryst. D67, 235-242.
+ as well as any specific reference in the program write-up.
+
+Chainsaw reference:  
+$TEXT:Reference1: $$ comment $$
+N Stein, "CHAINSAW: a program for mutating pdb files used 
+as templates in molecular replacement", J. Appl. Cryst. 41, 641-643 (2008).
+$$
+ Data line--- MODE MIXS
+ Data line--- END
+ ***** ERROR #43 READ:
+
+ Logical file name not found.
+
+ CHAINSAW:  Error reading XYZIN.
+Times: User:       0.0s System:    0.0s Elapsed:     0:00  
+
+---STDERR---
+ CHAINSAW:  Error reading XYZIN.

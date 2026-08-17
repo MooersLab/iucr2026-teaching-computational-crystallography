@@ -1,0 +1,18 @@
+DIALS (2018) Acta Cryst. D74, 85-97. https://doi.org/10.1107/S2059798317017235
+DIALS 3.30
+The following parameters have been modified:
+
+input {
+  experiments = <image files>
+}
+
+--------------------------------------------------------------------------------
+  format: <class 'dxtbx.format.FormatCBFMiniPilatus.FormatCBFMiniPilatus'>
+  template: /Users/blaine/3285CCinJNiucr26/demos/mpro_dials/frames/l6p17_09_001_#####.cbf:1:60
+  num images: 60
+  sequences:
+    still:    0
+    sweep:    1
+  num stills: 0
+--------------------------------------------------------------------------------
+Writing experiments to imported.expt

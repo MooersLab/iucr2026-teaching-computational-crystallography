@@ -1,0 +1,42 @@
+! XDS.INP written by demo2_XDS_via_subprocess.ipynb
+! Geometry read from the CBF headers through dxtbx. Do not hand-edit the
+! numbers below. Edit the notebook cell that generates them.
+
+JOB= XYCORR INIT COLSPOT IDXREF DEFPIX INTEGRATE CORRECT
+
+! ---- detector ----------------------------------------------------------
+DETECTOR= PILATUS
+MINIMUM_VALID_PIXEL_VALUE= 0
+OVERLOAD= 1048576
+SENSOR_THICKNESS= 0.45
+NX= 2463  NY= 2527  QX= 0.172000  QY= 0.172000
+ORGX= 1259.00  ORGY= 1240.00
+DETECTOR_DISTANCE= 200.000
+DIRECTION_OF_DETECTOR_X-AXIS= 1.0 0.0 0.0
+DIRECTION_OF_DETECTOR_Y-AXIS= 0.0 1.0 0.0
+TRUSTED_REGION= 0.00 1.41
+
+! ---- beam and rotation -------------------------------------------------
+X-RAY_WAVELENGTH= 1.033200
+INCIDENT_BEAM_DIRECTION= 0.000000 0.000000 1.000000
+ROTATION_AXIS= 1.000000 0.000000 0.000000
+OSCILLATION_RANGE= 0.200000
+STARTING_ANGLE= 0.000000
+STARTING_FRAME= 1
+FRACTION_OF_POLARIZATION= 0.99
+POLARIZATION_PLANE_NORMAL= 0.0 1.0 0.0
+
+! ---- the frames --------------------------------------------------------
+NAME_TEMPLATE_OF_DATA_FRAMES= /Users/blaine/3285CCinJNiucr26/demos/mpro_xds/frames/l6p17_09_001_?????.cbf
+DATA_RANGE= 1 60
+SPOT_RANGE= 1 60
+BACKGROUND_RANGE= 1 20
+
+! ---- what we do not yet know -------------------------------------------
+! Zero means "determine this from the data". Fill these in on a second pass
+! once IDXREF has proposed a lattice, then rerun with JOB= DEFPIX INTEGRATE CORRECT.
+SPACE_GROUP_NUMBER= 0
+UNIT_CELL_CONSTANTS= 0 0 0 0 0 0
+FRIEDEL'S_LAW= TRUE
+INCLUDE_RESOLUTION_RANGE= 50.0 1.30
+MAXIMUM_NUMBER_OF_PROCESSORS= 2

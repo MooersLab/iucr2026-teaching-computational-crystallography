@@ -1,0 +1,103 @@
+DIALS (2018) Acta Cryst. D74, 85-97. https://doi.org/10.1107/S2059798317017235
+DIALS 3.30
+The following parameters have been modified:
+
+input {
+  experiments = integrated.expt
+  reflections = integrated.refl
+}
+
+================================================================================
+
+Performing Laue group analysis
+
+Mapping all input cells to a common minimum cell
+Filtering reflections for dataset 0
+Read 19626 predicted reflections
+Selected 15075 reflections integrated by profile and summation methods
+Removed 2 reflections below partiality threshold
+Removed 14 intensity.sum.value reflections with I/Sig(I) < -5
+Removed 1 intensity.prf.value reflections with I/Sig(I) < -5
+A round of outlier rejection has been performed, 
+0 outliers have been identified. 
+
+Patterson group: C 1 2/m 1 (-z,x+y,2*x)
+
+--------------------------------------------------------------------------------
+
+Normalising intensities for dataset 1
+
+ML estimate of overall B_cart value:
+  -10.10,  0.63, 16.11
+         10.34, -0.66
+                -6.27
+ML estimate of  -log of scale factor:
+  -2.52
+
+--------------------------------------------------------------------------------
+
+Estimation of resolution for Laue group analysis
+
+Removing 6 Wilson outliers with E^2 >= 16.0
+Resolution estimate from <I>/<σ(I)> > 4.0 : 3.21
+CC½ resolution filter failed with the following error:
+WARN: Not enough reflections for fitting
+High resolution limit set to: 3.21
+Selecting 892 reflections with d > 3.21
+
+Input crystal symmetry:
+Unit cell: (44.5395, 53.0721, 62.5305, 115.357, 101.669, 89.873)
+Space group: P 1 (No. 1)
+Change of basis op to minimum cell: -a,b,-b-c
+Crystal symmetry in minimum cell:
+Unit cell: (44.5395, 53.0721, 62.3237, 114.953, 101.598, 90.127)
+Space group: P 1 (No. 1)
+Lattice point group: C 1 2/m 1 (-z,x+y,2*x)
+
+Overall CC for 443 unrelated pairs: 0.033
+Estimated expectation value of true correlation coefficient E(CC) = 0.979
+Estimated sd(CC) = 1.251 / sqrt(N)
+Estimated E(CC) of true correlation coefficient from identity = 0.952
+
+--------------------------------------------------------------------------------
+
+Scoring individual symmetry elements
+
++--------------+--------+------+-----+----+------------------+
+|   likelihood |   Z-CC |   CC |   N |    | Operator         |
+|--------------+--------+------+-----+----+------------------|
+|        0.749 |   4.28 | 0.83 |  42 | ** | a:  1 |(0, 0, 0) |
+|        0.734 |   4.22 | 0.81 |  42 | ** | b:  2 |(0, 1, 0) |
++--------------+--------+------+-----+----+------------------+
+
+--------------------------------------------------------------------------------
+
+Scoring all possible sub-groups
+
++-------------------+----+--------------+----------+--------+--------+------+-------+------------+--------------------+------------+
+| Patterson group   |    |   Likelihood |   NetZcc |   Zcc+ |   Zcc- |   CC |   CC- |   delta(°) | Reindex operator   | Elements   |
+|-------------------+----+--------------+----------+--------+--------+------+-------+------------+--------------------+------------|
+| I 1 2/m 1         | ** |        0.734 |     4.25 |   4.25 |   0    | 0.82 |  0    |        0.3 | -a,-b,a+b+2*c      | ab         |
+| P -1              |    |        0.266 |     0.06 |   4.28 |   4.22 | 0.83 |  0.81 |        0   | a,b,c              | a.         |
++-------------------+----+--------------+----------+--------+--------+------+-------+------------+--------------------+------------+
+
+Best solution: I 1 2/m 1
+Unit cell: 44.539, 53.072, 111.862, 90.000, 99.968, 90.000
+Reindex operator: -a,-b,a+b+2*c
+Laue group probability: 0.734
+Laue group confidence: 0.587
+
++-------------------+--------------------------+
+| Patterson group   | Corresponding MX group   |
+|-------------------+--------------------------|
+| I 1 2/m 1         | I 1 2 1                  |
++-------------------+--------------------------+
+================================================================================
+
+Analysing systematic absences
+
+Laue group: I 1 2/m 1
+No absences to check for this laue group
+
+Saving reindexed experiments to symmetrized.expt in space group I 1 2 1
+Saving 19626 reindexed reflections to symmetrized.refl

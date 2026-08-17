@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+
+
+
+
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8"/>
+
+  <!-- Definitions for compatibility with the ccp4i2 browser -->
+  <script>
+    if (!Function.prototype.bind) {
+      Function.prototype.bind = function(oThis) {
+        if (typeof this !== 'function') {
+          // closest thing possible to the ECMAScript 5
+          // internal IsCallable function
+          throw new TypeError('Function.prototype.bind - what is trying to be bound is not callable');
+        }
+
+        var aArgs   = Array.prototype.slice.call(arguments, 1),
+        fToBind = this,
+        fNOP    = function() {},
+        fBound  = function() {
+          return fToBind.apply(this instanceof fNOP
+                               ? this
+                               : oThis,
+                               aArgs.concat(Array.prototype.slice.call(arguments)));
+          };
+
+        if (this.prototype) {
+          // Function.prototype doesn't have a prototype property
+          fNOP.prototype = this.prototype;
+        }
+        fBound.prototype = new fNOP();
+
+        return fBound;
+      }
+    }
+  if (typeof Float64Array === 'undefined') Float64Array = Float32Array;
+  </script>
+
+  
+  <script src="https://code.jquery.com/jquery-1.12.0.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.5.1/katex.min.js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.5.1/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.5.1/katex.min.css"/>
+  
+
+  
+  <style type="text/css">
+    body {
+      /*font-family: Helmet, Freesans, Helvetica, Arial, sans-serif;*/
+      margin: 8px;
+      min-width: 240px;
+      margin-left: 5%;
+      margin-right: 5%;
+    }
+
+    .plot {
+      float: left;
+      width: 600px;
+      height: 400px;
+      margin-bottom: 20px;
+    }
+
+    .square-plot {
+      float: left;
+      width: 800px;
+      height: 800px;
+      margin-bottom: 20px;
+    }
+
+    .dendrogram-plot {
+      float: left;
+      width: 1000px;
+      height: 1000px;
+      margin-bottom: 20px;
+    }
+
+    .katex-display {
+      text-align: left;
+    }
+  </style>
+  
+</head>
+
+
+
+<body>
+  
+<div class="page-header">
+    <h1>DIALS systematic absences report</h1>
+</div>
+
+<div>
+  <div class="panel-group">
+      <div class="panel panel-default">
+    <div class="panel-heading" data-toggle="collapse" data-target="#collapse_screw_axes">
+        <h4 class="panel-title">
+            <a>Screw axes analysis</a>
+        </h4>
+    </div>
+    <div id="collapse_screw_axes" class="panel-collapse collapse in">
+        <div class="panel-body">
+            <div class="container-fluid">
+                
+            </div>
+        </div>
+        
+    </div>
+</div>
+  </div>
+</div>
+
+
+  <script>
+    renderMathInElement(document.body);
+  </script>
+</body>
