@@ -27,7 +27,8 @@ If you do not suffer from FOCL, Fear of the Command Line, you can compile the PD
 
 ## Status
 
-The notebooks are still alpha. 
+- The slides are done.
+- The notebooks are still alpha. 
 
 
 ## Funding
