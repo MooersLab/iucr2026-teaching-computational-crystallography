@@ -14,11 +14,9 @@ Run `make` in the top folder, provided TeX Live or MiKTeX is already installed.
 
 If you do not suffer from FOCL, Fear of the Command Line, you can compile the PDF yourself.
 
-- The `main.tex` file is the source file for the slides.
+- The `main.tex` file is the source file for the slides. It is used by LaTeX and Beamer to generate the slides.
 - The `main.pdf` contains the slides. 
-- The `main.tex` is used with LaTeX and Beamer to generate the slides.
-- The `Makefile` generates the PDF when `make` is run.
-- It opens with the resulting PDF in Skim.app when you enter `make view`.
+- The `Makefile` generates the PDF when `make` is run. It opens with the resulting PDF in Skim.app when you enter `make view`. Edit the Makefile to customize to your setup.
 
 ## LICENSE
 
