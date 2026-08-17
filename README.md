@@ -21,7 +21,7 @@ If you do not suffer from FOCL, Fear of the Command Line, you can compile the PD
 ## LICENSE
 
 - The source code is covered by the MIT License.
-- The images are covered by a Creative Commons Version 4 license.
+
 
 ## Status
 
