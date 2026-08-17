@@ -1,4 +1,4 @@
-# Makefile for the 4592iucr2026teaching-computational-crystallography slideshow LaTeX build
+# Makefile for the 3288shortcutsmanager slideshow LaTeX build
 # Reproduces the manual sequence:
 #   lualatex main
 #   open -a Skim.app main.pdf
@@ -13,6 +13,7 @@
 DOC    = main
 LATEX  = lualatex
 LFLAGS = -interaction=nonstopmode -synctex=1
+# BIBTEX = bibtex
 VIEWER = open -a Skim.app
 
 .PHONY: all view open clean cleanall help
