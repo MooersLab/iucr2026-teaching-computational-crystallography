@@ -1,8 +1,7 @@
-![Version](https://img.shields.io/static/v1?label=sofware-fayre-2026-slides&message=0.1&color=brightcolor)
+![Version](https://img.shields.io/static/v1?label=sofware-fayre-2026-slides&message=0.2&color=brightcolor)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 ![License](https://img.shields.io/badge/License-CC4-orange)
 
-## Under construction; COME BACK Later!
 
 ## What is this?
 Slideshow for the XXVII Congress of the International Union of Crystallography (IUCr) 2026 talk in the microsymposium MS-116, Teaching Computational Crystallography, on Monday, August 17, 2026, from 3:00 to 3:30 PM in Room 224 of the BMO Convention Center in Calgary, Alberta. 
@@ -25,6 +24,10 @@ If you do not suffer from FOCL, Fear of the Command Line, you can compile the PD
 
 - The source code is covered by the MIT License.
 - The images are covered by a Creative Commons Version 4 license.
+
+## Status
+
+The notebooks are still alpha. 
 
 
 ## Funding
